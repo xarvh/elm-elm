@@ -1,17 +1,53 @@
 module Compiler exposing (..)
 
 
+import String
 
 import Combine
 import Combine.Infix exposing ((<*))
 import Combine.Num
 
 
--- Abstract syntax tree
-type Node
-    = Expression (List Node)
-    | Attribute String Node
-    | Fragment String String
+
+type FragmentType
+    = Expression
+    | Attribute
+    | Symbol
+    | Constant
+    | Operator
+
+
+
+type Node =
+    Node
+        { consumedText : String
+        , value : String
+        , fragmentType : FragmentType
+        , position : Int
+        , children : List Node
+        }
+
+
+
+extractContext =
+    Combine.primitive (\context -> (Ok context, context))
+
+
+parseNode fragmentType fragmentParser =
+    extractContext `Combine.andThen` \oldContext ->
+    fragmentParser `Combine.andThen` \(value, children) ->
+    extractContext `Combine.andThen` \(newContext) ->
+    Combine.succeed <|
+        Node
+            { consumedText = String.slice oldContext.position newContext.position oldContext.input
+            , value = value
+            , fragmentType = fragmentType
+            , position = oldContext.position
+            , children = children
+            }
+
+
+
 
 
 
@@ -22,34 +58,38 @@ symbolRegex =
 symbol : Combine.Parser Node
 symbol =
     Combine.regex symbolRegex
-    |> Combine.map (Fragment "symbol")
+    |> Combine.map (\v -> (v, []))
+    |> parseNode Symbol
+
+
+attribute node =
+    Combine.regex ("[.]" ++ symbolRegex)
+    |> Combine.map (\v -> (v, [node]))
+    |> parseNode Attribute
 
 
 withAttribute p =
-    let
-        parseAttribute node =
-            Combine.regex ("[.]" ++ symbolRegex)
-            |> Combine.map (\attribute -> Attribute attribute node)
-    in
-        Combine.or (p `Combine.andThen` parseAttribute) p
+    Combine.or (p `Combine.andThen` attribute) p
 
 
 
 constant : Combine.Parser Node
 constant =
     Combine.Num.int
-    |> Combine.map (Fragment "number" << toString)
+    |> Combine.map (\v -> (toString v, [])) --Fragment "number" << toString)
+    |> parseNode Constant
 
 
 operator : Combine.Parser Node
 operator =
     Combine.regex "[~!@#$%^&*-+/?<>|=]+"
-    |> Combine.map (Fragment "op")
+    |> Combine.map (\v -> (v, [])) --Fragment "op")
+    |> parseNode Operator
 
 
 fragment =
     Combine.choice
-        [ Combine.parens expression |> withAttribute
+        [ Combine.parens expression |> withAttribute -- TODO or tuple!!
         , symbol |> withAttribute
 --         , bracketedStuff
 --         , bracedStuff |> withAttribute
@@ -67,7 +107,8 @@ expression =
     -- Need to defer instantiation: https://github.com/Bogdanp/elm-combine/issues/7#issuecomment-177468446
     Combine.rec <| \() ->
         Combine.sepBy1 whitespace fragment
-        |> Combine.map Expression
+        |> Combine.map (\n -> ("()", n))
+        |> parseNode Expression
 
 
 
