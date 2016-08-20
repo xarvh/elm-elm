@@ -16,7 +16,7 @@ type Node
 
 constant : Combine.Parser Node
 constant =
-    Combine.Num.float
+    Combine.Num.int
     |> Combine.map (\f -> Node (toString f) [])
 
 
@@ -42,11 +42,10 @@ opSequence =
 
 expression : Combine.Parser Node
 expression =
-    Combine.choice
-        [ Combine.parens expression
-        , Combine.chainl expression opSequence
-        , constant
-        ]
+    -- Need to defer instantiation: https://github.com/Bogdanp/elm-combine/issues/7#issuecomment-177468446
+    Combine.rec <| \() ->
+        Combine.chainl (Combine.choice [constant, Combine.parens expression]) opSequence
+
 
 
 
