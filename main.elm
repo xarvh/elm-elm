@@ -45,17 +45,13 @@ update msg model =
 -- VIEW
 
 
-(=>) prop value =
-  prop (toString value)
-
-
 drawLine : ( Float, Float ) -> ( Float, Float ) -> S.Svg msg
 drawLine ( sourceX, sourceY ) ( targetX, targetY ) =
   S.line
-    [ SA.x1 => sourceX
-    , SA.y1 => sourceY
-    , SA.x2 => targetX
-    , SA.y2 => targetY
+    [ SA.x1 <| toString sourceX
+    , SA.y1 <| toString sourceY
+    , SA.x2 <| toString targetX
+    , SA.y2 <| toString targetY
     , SA.stroke "black" ]
     []
 
