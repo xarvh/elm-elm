@@ -20,8 +20,7 @@ type FragmentType
 
 type Node =
     Node
-        { consumedText : String
-        , value : String
+        { value : String
         , fragmentType : FragmentType
         , position : Int
         , children : List Node
@@ -36,11 +35,9 @@ extractContext =
 parseNode fragmentType fragmentParser =
     extractContext `Combine.andThen` \oldContext ->
     fragmentParser `Combine.andThen` \(value, children) ->
-    extractContext `Combine.andThen` \(newContext) ->
     Combine.succeed <|
         Node
-            { consumedText = String.slice oldContext.position newContext.position oldContext.input
-            , value = value
+            { value = value
             , fragmentType = fragmentType
             , position = oldContext.position
             , children = children
