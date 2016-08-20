@@ -62,14 +62,24 @@ symbol =
     |> parseNode Symbol
 
 
-attribute node =
+attribute =
     Combine.regex ("[.]" ++ symbolRegex)
-    |> Combine.map (\v -> (v, [node]))
+    |> Combine.map (\v -> (v, []))
     |> parseNode Attribute
 
 
-withAttribute p =
-    Combine.or (p `Combine.andThen` attribute) p
+canHaveTrailingAttributes parser =
+    let
+        makeA node attributes =
+            case attributes of
+                Node at :: ats -> makeA (Node { at | children = [node] }) ats
+                [] -> node
+
+    in
+        parser `Combine.andThen` \node ->
+        Combine.many attribute `Combine.andThen` \parsedAttributes ->
+        Combine.succeed <|
+            makeA node parsedAttributes
 
 
 
@@ -88,11 +98,13 @@ operator =
 
 
 fragment =
+    Combine.rec <| \() ->
     Combine.choice
-        [ Combine.parens expression |> withAttribute -- TODO or tuple!!
-        , symbol |> withAttribute
+        [ Combine.parens expression |> canHaveTrailingAttributes -- TODO or tuple!!
+        , symbol |> canHaveTrailingAttributes
+        , attribute
 --         , bracketedStuff
---         , bracedStuff |> withAttribute
+--         , bracedStuff |> canHaveTrailingAttributes
         , operator
         , constant
         ]

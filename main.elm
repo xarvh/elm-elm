@@ -72,8 +72,8 @@ drawNode value =
 
 
 node2tree : Compiler.Node -> TreeDiagram.Tree String
-node2tree (Compiler.Node {value, fragmentType, children, position}) =
-    TreeDiagram.node (value ++ ":" ++ toString position) <| List.map node2tree children
+node2tree (Compiler.Node {value, fragmentType, children, consumedText}) =
+    TreeDiagram.node (value ++ ":" ++ toString fragmentType) <| List.map node2tree children
 
 
 
