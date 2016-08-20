@@ -49,6 +49,8 @@ fragment =
     Combine.choice
         [ Combine.parens expression |> withAttribute
         , symbol |> withAttribute
+--         , bracketedStuff
+--         , bracedStuff |> withAttribute
         , operator
         , constant
         ]
@@ -75,10 +77,17 @@ expression =
 compile : String -> Result (List String) Node
 compile input =
     let
-        parseEnd = 0
+        parseEnd node =
+            Combine.end
+            |> Combine.map (always node)
 
+        parser =
+            Combine.andThen expression parseEnd
 
+        (result, context) =
+            Combine.parse parser input
     in
-        fst <| Combine.parse expression input --`Combine.andThen` (\
-
+        if context.input == ""
+        then result
+        else Err ["Cannot understand `" ++ context.input ++ "`"]
 

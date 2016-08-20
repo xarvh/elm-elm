@@ -95,7 +95,7 @@ view model =
             []
         , H.div
             [ HA.class "errors" ]
-            (List.map H.text model.errors)
+            (List.map (\e -> H.div [] [H.text e]) model.errors)
         , H.div
             [ HA.class "tree" ]
             [ case model.output of
