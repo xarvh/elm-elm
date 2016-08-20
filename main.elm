@@ -24,7 +24,7 @@ type alias Model =
 
 
 init =
-    Model "" [] Nothing
+    update (UserChangesInput "a b + (3 + f => 2).a.b.c ** 6") (Model "" [] Nothing)
 
 
 type Msg
@@ -85,7 +85,7 @@ view model =
         ]
         [ H.textarea
             [ HE.onInput UserChangesInput]
-            []
+            [ H.text model.input ]
         , H.div
             [ HA.class "errors" ]
             (List.map (\e -> H.div [] [H.text e]) model.errors)

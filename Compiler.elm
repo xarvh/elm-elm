@@ -94,14 +94,23 @@ operator =
     |> parseNode Operator
 
 
+parens =
+    Combine.rec <| \() ->
+    -- TODO tuples!!
+    Combine.parens expression
+
+
+
+
 fragment =
+    -- Need to defer instantiation: https://github.com/Bogdanp/elm-combine/issues/7#issuecomment-177468446
     Combine.rec <| \() ->
     Combine.choice
-        [ Combine.parens expression |> canHaveTrailingAttributes -- TODO or tuple!!
+        [ parens |> canHaveTrailingAttributes
         , symbol |> canHaveTrailingAttributes
         , attribute
---         , bracketedStuff
---         , bracedStuff |> canHaveTrailingAttributes
+-- TODO        , bracketedStuff
+-- TODO        , bracedStuff |> canHaveTrailingAttributes
         , operator
         , constant
         ]
@@ -113,11 +122,10 @@ whitespace =
 
 expression : Combine.Parser Node
 expression =
-    -- Need to defer instantiation: https://github.com/Bogdanp/elm-combine/issues/7#issuecomment-177468446
     Combine.rec <| \() ->
-        Combine.sepBy1 whitespace fragment
-        |> Combine.map (\n -> ("()", n))
-        |> parseNode Expression
+    Combine.sepBy1 whitespace fragment
+    |> Combine.map (\n -> ("()", n))
+    |> parseNode Expression
 
 
 
