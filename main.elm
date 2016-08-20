@@ -34,10 +34,9 @@ type Msg
 update msg model =
     case msg of
         UserChangesInput input ->
-            let
-                (tree, errors) = Compiler.compile input
-            in
-                Model input errors tree
+            case Compiler.compile input of
+                Ok tree -> Model input [] (Just tree)
+                Err errors -> Model input errors Nothing
 
 
 

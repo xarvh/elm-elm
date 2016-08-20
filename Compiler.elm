@@ -1,8 +1,9 @@
 module Compiler exposing (..)
 
 
-import String
 
+import Combine
+import Combine.Num
 
 
 -- Abstract syntax tree
@@ -12,33 +13,48 @@ type Node
 
 
 
-compile : String -> (Maybe Node, List String)
+
+constant : Combine.Parser Node
+constant =
+    Combine.Num.float
+    |> Combine.map (\f -> Node (toString f) [])
+
+
+
+operator : Combine.Parser String
+operator =
+    Combine.regex "[~!@#$%^&*-+/?<>|=]+"
+
+
+
+
+
+opSequence : Combine.Parser (Node -> Node -> Node)
+opSequence =
+    let
+        opMap op left right =
+            Node op [left, right]
+    in
+        Combine.map opMap operator
+
+
+
+
+expression : Combine.Parser Node
+expression =
+    Combine.choice
+        [ Combine.parens expression
+        , Combine.chainl expression opSequence
+        , constant
+        ]
+
+
+
+
+
+
+compile : String -> Result (List String) Node
 compile input =
-    (Just <| parse input, [])
-
---     case Parser.parse Nu.digit input of
---         Ok result -> (Just (Value <| toString input), [])
---         Err message -> (Nothing, [message])
+    fst <| Combine.parse expression input
 
 
-
-
-allOps = [ "-", "+" ]
-
-
-
-
-
-parse fragment =
-    parseOps allOps fragment
-
-
-parseOps ops fragment =
-    case ops of
-        [] ->
-            Node fragment []
-
-        op :: xops ->
-            case String.split op fragment of
-                [single] -> parseOps xops fragment
-                operands -> Node op <| List.map parse operands
