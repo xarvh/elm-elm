@@ -74,8 +74,14 @@ drawNode value =
 node2tree : Compiler.Node -> TreeDiagram.Tree String
 node2tree node =
     case node of
-        Compiler.Node value children ->
-            TreeDiagram.node value <| List.map node2tree children
+        Compiler.Fragment t value ->
+            TreeDiagram.node (value ++ ":" ++ t) []
+
+        Compiler.Attribute att node ->
+            TreeDiagram.node att [node2tree node]
+
+        Compiler.Expression nodes ->
+            TreeDiagram.node "(e)" <| List.map node2tree nodes
 
 
 
