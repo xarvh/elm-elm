@@ -3,6 +3,7 @@ module Compiler exposing (..)
 
 
 import Combine
+import Combine.Infix exposing ((<*))
 import Combine.Num
 
 
@@ -16,6 +17,7 @@ type Node
 
 symbolRegex =
     "[a-zA-z][a-zA-Z0-9]*"
+
 
 symbol : Combine.Parser Node
 symbol =
@@ -57,7 +59,7 @@ fragment =
 
 
 whitespace =
-    Combine.regex "[ \t]*"
+    Combine.regex "[ \t\n\r]*"
 
 
 expression : Combine.Parser Node
@@ -77,17 +79,8 @@ expression =
 compile : String -> Result (List String) Node
 compile input =
     let
-        parseEnd node =
-            Combine.end
-            |> Combine.map (always node)
-
-        parser =
-            Combine.andThen expression parseEnd
-
         (result, context) =
-            Combine.parse parser input
+            Combine.parse (expression <* whitespace <* Combine.end) input
     in
-        if context.input == ""
-        then result
-        else Err ["Cannot understand `" ++ context.input ++ "`"]
+        result
 
