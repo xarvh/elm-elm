@@ -15,6 +15,7 @@ type FragmentType
     | Symbol
     | Constant
     | Operator
+    | FixedList
 
 
 
@@ -83,14 +84,14 @@ canHaveTrailingAttributes parser =
 constant : Combine.Parser Node
 constant =
     Combine.Num.int
-    |> Combine.map (\v -> (toString v, [])) --Fragment "number" << toString)
+    |> Combine.map (\v -> (toString v, []))
     |> parseNode Constant
 
 
 operator : Combine.Parser Node
 operator =
     Combine.regex "[~!@#$%^&*-+/?<>|=]+"
-    |> Combine.map (\v -> (v, [])) --Fragment "op")
+    |> Combine.map (\v -> (v, []))
     |> parseNode Operator
 
 
@@ -101,6 +102,19 @@ parens =
 
 
 
+brackets =
+    Combine.rec <| \() ->
+    Combine.brackets <|
+        Combine.choice
+            [ Combine.fail ["TODO"] -- TODO: list comprehension
+
+            -- TODO: allow whitespace
+            , Combine.sepBy (Combine.string ",") expression
+                |> Combine.map (\l -> ("[l]", l))
+                |> parseNode FixedList
+            ]
+
+
 
 fragment =
     -- Need to defer instantiation: https://github.com/Bogdanp/elm-combine/issues/7#issuecomment-177468446
@@ -109,7 +123,7 @@ fragment =
         [ parens |> canHaveTrailingAttributes
         , symbol |> canHaveTrailingAttributes
         , attribute
--- TODO        , bracketedStuff
+        , brackets
 -- TODO        , bracedStuff |> canHaveTrailingAttributes
         , operator
         , constant
