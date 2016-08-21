@@ -50,7 +50,7 @@ parseNode fragmentType fragmentParser =
 
 
 symbolRegex =
-    "[a-zA-z][a-zA-Z0-9]*"
+    "[a-zA-Z][a-zA-Z0-9]*"
 
 
 symbol : Combine.Parser Node
