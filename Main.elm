@@ -81,8 +81,10 @@ view code =
                     ]
                 ]
                 [ case result of
-                    Err message ->
-                        div [] [ text <| toString message ]
+                    Err errors ->
+                      ul
+                        []
+                        (List.map (\e -> li [] [ text e ]) errors)
 
                     Ok stuff ->
                         div [] [ text <| toString stuff ]
