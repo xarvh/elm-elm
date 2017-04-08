@@ -66,7 +66,6 @@ functionCall =
 
                 function :: arguments ->
                     Combine.succeed <| FunctionCall function arguments
-
     in
         Combine.sepBy1 Combine.whitespace atom
             |> Combine.andThen listToParser
@@ -80,19 +79,6 @@ expression =
                 [ atom <* Combine.end
                 , functionCall
                 ]
-
-
-
-{-
-   factor : Parser s Int
-   factor =
-       whitespace *> (Combine.parens expression <|> Combine.Num.int) <* whitespace
-
-
-   expression : Parser s Int
-   expression =
-       Combine.lazy <| \() -> Combine.chainl addop term
--}
 
 
 parse code =
