@@ -58,11 +58,15 @@ functionCall =
     let
         listToParser list =
             case list of
+                [] ->
+                    Combine.fail "nope"
+
+                element :: [] ->
+                    Combine.succeed element
+
                 function :: arguments ->
                     Combine.succeed <| FunctionCall function arguments
 
-                [] ->
-                    Combine.fail "nope"
     in
         Combine.sepBy1 Combine.whitespace atom
             |> Combine.andThen listToParser
@@ -72,11 +76,10 @@ expression : Parser s Node
 expression =
     Combine.lazy <|
         \() ->
-          atom
---             Combine.choice
---                 [ functionCall
---                 , atom
---                 ]
+            Combine.choice
+                [ atom <* Combine.end
+                , functionCall
+                ]
 
 
 
@@ -92,11 +95,5 @@ expression =
 -}
 
 
-parse : String -> Result (List String) Node
 parse code =
-    case Combine.parse (expression <* Combine.end) code of
-        Ok ( _, _, n ) ->
-            Ok n
-
-        Err ( _, stream, errors ) ->
-            Err errors
+    Combine.parse (expression <* Combine.end) code

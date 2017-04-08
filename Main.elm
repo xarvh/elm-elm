@@ -11,7 +11,7 @@ type alias Model =
 
 
 init =
-    "a + b * c"
+    "a b"
 
 
 update msg model =
@@ -81,13 +81,22 @@ view code =
                     ]
                 ]
                 [ case result of
-                    Err errors ->
-                      ul
-                        []
-                        (List.map (\e -> li [] [ text e ]) errors)
+                    Err ( state, inputStream, errors ) ->
+                        div
+                            []
+                            [ ul
+                                []
+                                (List.map (\e -> li [] [ text e ]) errors)
+                            , div
+                                []
+                                [ text <| toString state ]
+                            , div
+                                []
+                                [ text <| toString inputStream ]
+                            ]
 
-                    Ok stuff ->
-                        div [] [ text <| toString stuff ]
+                    Ok ( _, _, tree ) ->
+                        div [] [ text <| toString tree ]
                 ]
             ]
 
