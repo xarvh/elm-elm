@@ -5,49 +5,53 @@ import Combine.Num
 
 
 type Node
-    = FunctionCall { name : String, arity : Int, arguments : List Node }
-    | Symbol { name : String }
-    | Literal String
+    = Element String
+    | FunctionCall Node (List Node)
+
+
+
+-- function, arguments
 
 
 test =
     FunctionCall
-        { name = "(+)"
-        , arity = 2
-        , arguments =
-            [ Literal "2"
-            , FunctionCall
-                { name = "(*)"
-                , arity = 2
-                , arguments =
-                    [ Literal "4"
-                    , Literal "2"
-                    ]
-                }
+        (Element "+")
+        [ Element "2"
+        , FunctionCall
+            (Element "*")
+            [ Element "4"
+            , Element "2"
             ]
-        }
-
-
-addop : Parser s (Int -> Int -> Int)
-addop =
-    Combine.choice
-        [ (+) <$ Combine.string "+"
-        , (-) <$ Combine.string "-"
         ]
 
 
-mulop : Parser s (Int -> Int -> Int)
-mulop =
+
+integer =
+  Combine.Num.int
+      |> Combine.map (toString >> Element)
+
+operator =
+    Combine.regex "[~!@#$%^&*-+|<>]+"
+      |> Combine.map Element
+
+
+symbol =
+    Combine.regex "[a-z][a-zA-Z0-9]*"
+      |> Combine.map Element
+
+
+element : Parser s Node
+element =
     Combine.choice
-        [ (*) <$ Combine.string "*"
+        [ integer
+        , operator
+        , symbol
         ]
 
 
-term : Parser s Int
-term =
-    Combine.lazy <| \() -> chainl mulop factor
 
 
+{-
 factor : Parser s Int
 factor =
     whitespace *> (Combine.parens expression <|> Combine.Num.int) <* whitespace
@@ -56,11 +60,12 @@ factor =
 expression : Parser s Int
 expression =
     Combine.lazy <| \() -> Combine.chainl addop term
+-}
 
 
-parse : String -> Result String Int
+parse : String -> Result String Node
 parse code =
-    case Combine.parse (expression <* Combine.end) code of
+    case Combine.parse (element <* Combine.end) code of
         Ok ( _, _, n ) ->
             Ok n
 
