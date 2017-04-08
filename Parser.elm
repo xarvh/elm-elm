@@ -1,6 +1,6 @@
 module Parser exposing (..)
 
-import Combine exposing (..)
+import Combine
 import Combine.Num
 
 
@@ -9,9 +9,8 @@ type Node
     | FunctionCall Node (List Node) -- function, arguments
 
 
-type alias P s = Combine.Parser s Node
-
-
+type alias P s =
+    Combine.Parser s Node
 
 
 test =
@@ -24,6 +23,21 @@ test =
             , Element "2"
             ]
         ]
+
+
+
+-- Helpers
+
+
+mustEnd : P s -> P s
+mustEnd p =
+    p
+        |> Combine.map always
+        |> Combine.andMap Combine.end
+
+
+
+-- Elements Parsers
 
 
 integer =
@@ -41,7 +55,7 @@ symbol =
         |> Combine.map Element
 
 
-element : Parser s Node
+element : P s
 element =
     Combine.choice
         [ integer
@@ -50,13 +64,28 @@ element =
         ]
 
 
+
+-- Higher order constructs
+
+
+list : P s
+list =
+    expression
+        |> Combine.sepBy (Combine.string ",")
+        |> Combine.between (Combine.string "[") (Combine.string "]")
+        |> Combine.map (\list -> FunctionCall (Element "[]") list)
+
+
 atom : P s
 atom =
-    [ element
-    , Combine.parens <| Combine.lazy <| \() -> expression
-    ]
-        |> Combine.choice
-        |> Combine.between Combine.whitespace Combine.whitespace
+    Combine.lazy <|
+        \() ->
+            [ element
+            , list
+            , Combine.parens expression
+            ]
+                |> Combine.choice
+                |> Combine.between Combine.whitespace Combine.whitespace
 
 
 functionCall : P s
@@ -80,32 +109,37 @@ functionCall =
 op0 : P s -> P s
 op0 previous =
     let
-        op n1 n2 =
-            FunctionCall (Element "*") [ n1, n2 ]
+        operator string result =
+            string
+                |> Combine.string
+                |> Combine.map (always result)
+
+        opNode leftChild rightChild =
+            FunctionCall (Element "*") [ leftChild, rightChild ]
 
         parseOp =
-            Combine.string "*" $> op
+            operator "*" opNode
     in
         Combine.lazy <|
-            \() -> Combine.chainr parseOp previous
+            \() -> Combine.chainl parseOp previous
 
 
 expression : P s
 expression =
     Combine.lazy <|
         \() ->
-          let
-              prev =
+            let
+                prev =
+                    Combine.choice
+                        [ mustEnd atom
+                        , functionCall
+                        ]
+            in
                 Combine.choice
-                    [ atom <* Combine.end
-                    , functionCall
+                    [ mustEnd prev
+                    , op0 prev
                     ]
-          in
-              Combine.choice
-                [ prev <* Combine.end
-                , op0 prev
-                ]
 
 
 parse code =
-    Combine.parse (expression <* Combine.end) code
+    Combine.parse (mustEnd expression) code
