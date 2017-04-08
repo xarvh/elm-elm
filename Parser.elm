@@ -1,7 +1,7 @@
 module Parser exposing (..)
 
 import Combine exposing (..)
-import Combine.Num exposing (int)
+import Combine.Num
 
 
 type Node
@@ -28,8 +28,6 @@ test =
         }
 
 
-
-
 addop : Parser s (Int -> Int -> Int)
 addop =
     Combine.choice
@@ -47,26 +45,17 @@ mulop =
 
 term : Parser s Int
 term =
-    let
-        go () =
-            chainl mulop factor
-    in
-        lazy go
+    Combine.lazy <| \() -> chainl mulop factor
 
 
 factor : Parser s Int
 factor =
-    whitespace *> (parens expression <|> int) <* whitespace
-
+    whitespace *> (Combine.parens expression <|> Combine.Num.int) <* whitespace
 
 
 expression : Parser s Int
 expression =
-    let
-        go () =
-            Combine.chainl addop term
-    in
-        lazy go
+    Combine.lazy <| \() -> Combine.chainl addop term
 
 
 parse : String -> Result String Int
