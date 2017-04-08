@@ -9,6 +9,11 @@ type Node
     | FunctionCall Node (List Node) -- function, arguments
 
 
+type alias P s = Combine.Parser s Node
+
+
+
+
 test =
     FunctionCall
         (Element "+")
@@ -45,15 +50,16 @@ element =
         ]
 
 
-atom : Parser s Node
+atom : P s
 atom =
-    Combine.choice
-        [ element
-        , Combine.parens <| Combine.lazy <| \() -> expression
-        ]
+    [ element
+    , Combine.parens <| Combine.lazy <| \() -> expression
+    ]
+        |> Combine.choice
+        |> Combine.between Combine.whitespace Combine.whitespace
 
 
-functionCall : Parser s Node
+functionCall : P s
 functionCall =
     let
         listToParser list =
@@ -71,13 +77,33 @@ functionCall =
             |> Combine.andThen listToParser
 
 
-expression : Parser s Node
+op0 : P s -> P s
+op0 previous =
+    let
+        op n1 n2 =
+            FunctionCall (Element "*") [ n1, n2 ]
+
+        parseOp =
+            Combine.string "*" $> op
+    in
+        Combine.lazy <|
+            \() -> Combine.chainr parseOp previous
+
+
+expression : P s
 expression =
     Combine.lazy <|
         \() ->
-            Combine.choice
-                [ atom <* Combine.end
-                , functionCall
+          let
+              prev =
+                Combine.choice
+                    [ atom <* Combine.end
+                    , functionCall
+                    ]
+          in
+              Combine.choice
+                [ prev <* Combine.end
+                , op0 prev
                 ]
 
 
