@@ -73,7 +73,14 @@ list =
     expression
         |> Combine.sepBy (Combine.string ",")
         |> Combine.between (Combine.string "[") (Combine.string "]")
-        |> Combine.map (\list -> FunctionCall (Element "[]") list)
+        |> Combine.map (\l -> FunctionCall (Element "[]") l)
+
+
+tuple =
+    expression
+        |> Combine.sepBy (Combine.string ",")
+        |> Combine.between (Combine.string "(") (Combine.string ")")
+        |> Combine.map (\l -> FunctionCall (Element "()") l)
 
 
 atom : P s
@@ -82,6 +89,7 @@ atom =
         \() ->
             [ element
             , list
+            , tuple
             , Combine.parens expression
             ]
                 |> Combine.choice
