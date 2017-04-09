@@ -1,87 +1,85 @@
 module Parser exposing (..)
 
-import Combine
+import Combine exposing (Parser, ParseLocation, string)
 import Combine.Num
 
 
+type
+    NodeValue
+    -- "abc", 1, -3, 4.5, ...
+    = Literal String
+      -- +, -, ==>, ...
+    | Operator String
+      -- a, model, update, beginnerProgram, ...
+    | Symbol String
+
+
 type Node
-    = Element String
-    | FunctionCall Node (List Node) -- function, arguments
-
-
-type alias P s =
-    Combine.Parser s Node
-
-
-test =
-    FunctionCall
-        (Element "+")
-        [ Element "2"
-        , FunctionCall
-            (Element "*")
-            [ Element "4"
-            , Element "2"
-            ]
-        ]
+    = Node ParseLocation NodeValue (List NodeValue)
 
 
 
 -- Helpers
 
 
-mustEnd : P s -> P s
-mustEnd p =
-    p
-        |> Combine.map always
-        |> Combine.andMap Combine.end
+mustEnd : Parser s x -> Parser s x
+mustEnd =
+    Combine.map always >> Combine.andMap Combine.end
+
+
+toNodeParser : (ParseLocation -> a -> Node) -> Parser s a -> Parser s Node
+toNodeParser valueToNode =
+    Combine.withLocation <| \location -> Combine.map (valueToNode location) parser
 
 
 
 -- Elements Parsers
 
 
+integer : Parser s String
 integer =
-    Combine.Num.int
-        |> Combine.map (toString >> Element)
+    Combine.Num.int |> Combine.map toString
 
 
+operator : Parser s String
 operator =
     Combine.regex "[~!=@#$%^&*-+|<>]+"
-        |> Combine.map Element
 
 
+symbol : Parser s String
 symbol =
     Combine.regex "[a-z][a-zA-Z0-9]*"
-        |> Combine.map Element
 
 
-element : P s
+element : Parser s Node
 element =
     Combine.choice
         [ integer
         , Combine.parens operator
         , symbol
         ]
+        |> Combine.map Literal
+        |> toNodeParser (\location element -> Node location element [])
 
 
 
 -- Higher order constructs
 
 
-list : P s
+list : Parser s Node
 list =
     expression
         |> Combine.sepBy (Combine.string ",")
         |> Combine.between (Combine.string "[") (Combine.string "]")
-        |> Combine.map (\l -> FunctionCall (Element "[]") l)
+        |> toNodeParser (\location array -> Node location (Operator "[]") array)
 
 
-tuple : P s
+tuple : Parser s Node
 tuple =
     expression
         |> Combine.sepBy (Combine.string ",")
         |> Combine.between (Combine.string "(") (Combine.string ")")
-        |> Combine.map (\l -> FunctionCall (Element "()") l)
+        |> toNodeParser (\location array -> Node location (Operator "()") array)
 
 
 atom : P s
@@ -100,19 +98,13 @@ atom =
 functionCall : P s
 functionCall =
     let
-        listToParser list =
-            case list of
-                [] ->
-                    Combine.fail "nope"
-
-                element :: [] ->
-                    Combine.succeed element
-
-                function :: arguments ->
-                    Combine.succeed <| FunctionCall function arguments
+        arrayToCall location array =
+          case array of
+            [] -> Node location (Literal "This is not going to happen") []
+            function :: arguments -> Node location function arguments
     in
         Combine.sepBy1 Combine.whitespace atom
-            |> Combine.andThen listToParser
+            |> toNodeParser arrayToCall
 
 
 op0 : P s -> P s
