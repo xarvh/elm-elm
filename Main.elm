@@ -11,7 +11,16 @@ type alias Model =
 
 
 init =
-    "a b"
+    """[ 1
+, (==)
+, a
+, [1, (==), a, sin 1, [x, y], (2, 3), 8 * 9]
+, (1, (==), a, sin 1, [x, y], (2, 3), 8 * 9)
+, (a)
+, sin a
+, 1 * k
+]
+"""
 
 
 update msg model =
@@ -64,6 +73,7 @@ view code =
                 , ( "display", "flex" )
                 , ( "flex-direction", "column" )
                 , ( "align-items", "center" )
+                , ( "margin-top", "1rem" )
                 ]
             ]
             [ Html.textarea
