@@ -76,6 +76,7 @@ list =
         |> Combine.map (\l -> FunctionCall (Element "[]") l)
 
 
+tuple : P s
 tuple =
     expression
         |> Combine.sepBy (Combine.string ",")
