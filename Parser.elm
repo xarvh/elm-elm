@@ -12,10 +12,12 @@ type
     | Operator String
       -- a, model, update, beginnerProgram, ...
     | Symbol String
+      -- nodes
+    | FunctionCall Node (List Node)
 
 
 type Node
-    = Node ParseLocation NodeValue (List NodeValue)
+    = Node ParseLocation NodeValue
 
 
 
@@ -28,7 +30,7 @@ mustEnd =
 
 
 toNodeParser : (ParseLocation -> a -> Node) -> Parser s a -> Parser s Node
-toNodeParser valueToNode =
+toNodeParser valueToNode parser =
     Combine.withLocation <| \location -> Combine.map (valueToNode location) parser
 
 
@@ -54,12 +56,11 @@ symbol =
 element : Parser s Node
 element =
     Combine.choice
-        [ integer
-        , Combine.parens operator
-        , symbol
+        [ integer |> Combine.map Literal
+        , Combine.parens operator |> Combine.map Symbol
+        , symbol |> Combine.map Symbol
         ]
-        |> Combine.map Literal
-        |> toNodeParser (\location element -> Node location element [])
+        |> toNodeParser (\location nodeValue -> Node location nodeValue)
 
 
 
@@ -68,21 +69,25 @@ element =
 
 list : Parser s Node
 list =
-    expression
-        |> Combine.sepBy (Combine.string ",")
-        |> Combine.between (Combine.string "[") (Combine.string "]")
-        |> toNodeParser (\location array -> Node location (Operator "[]") array)
+    Combine.lazy <|
+        \() ->
+            expression
+                |> Combine.sepBy (Combine.string ",")
+                |> Combine.between (Combine.string "[") (Combine.string "]")
+                |> toNodeParser (\location array -> Node location <| FunctionCall (Node location <| Symbol "[]") array)
 
 
 tuple : Parser s Node
 tuple =
-    expression
-        |> Combine.sepBy (Combine.string ",")
-        |> Combine.between (Combine.string "(") (Combine.string ")")
-        |> toNodeParser (\location array -> Node location (Operator "()") array)
+    Combine.lazy <|
+        \() ->
+            expression
+                |> Combine.sepBy (Combine.string ",")
+                |> Combine.between (Combine.string "(") (Combine.string ")")
+                |> toNodeParser (\location array -> Node location <| FunctionCall (Node location <| Symbol "()") array)
 
 
-atom : P s
+atom : Parser s Node
 atom =
     Combine.lazy <|
         \() ->
@@ -95,37 +100,45 @@ atom =
                 |> Combine.between Combine.whitespace Combine.whitespace
 
 
-functionCall : P s
+functionCall : Parser s Node
 functionCall =
     let
         arrayToCall location array =
-          case array of
-            [] -> Node location (Literal "This is not going to happen") []
-            function :: arguments -> Node location function arguments
-    in
-        Combine.sepBy1 Combine.whitespace atom
-            |> toNodeParser arrayToCall
+            case array of
+                [] ->
+                    Node location <| Literal "This is not going to happen"
 
-
-op0 : P s -> P s
-op0 previous =
-    let
-        operator string result =
-            string
-                |> Combine.string
-                |> Combine.map (always result)
-
-        opNode leftChild rightChild =
-            FunctionCall (Element "*") [ leftChild, rightChild ]
-
-        parseOp =
-            operator "*" opNode
+                function :: arguments ->
+                    Node location <| FunctionCall function arguments
     in
         Combine.lazy <|
-            \() -> Combine.chainl parseOp previous
+            \() ->
+                Combine.sepBy1 Combine.whitespace atom
+                    |> toNodeParser arrayToCall
 
 
-expression : P s
+
+{-
+   op0 : P s -> P s
+   op0 previous =
+       let
+           operator string result =
+               string
+                   |> Combine.string
+                   |> Combine.map (always result)
+
+           opNode leftChild rightChild =
+               FunctionCall (Element "*") [ leftChild, rightChild ]
+
+           parseOp =
+               operator "*" opNode
+       in
+           Combine.lazy <|
+               \() -> Combine.chainl parseOp previous
+-}
+
+
+expression : Parser s Node
 expression =
     Combine.lazy <|
         \() ->
@@ -138,7 +151,8 @@ expression =
             in
                 Combine.choice
                     [ mustEnd prev
-                    , op0 prev
+
+                    --, op0 prev
                     ]
 
 
