@@ -4,20 +4,10 @@ import Combine exposing (Parser, ParseLocation, string)
 import Combine.Num
 
 
-type
-    NodeValue
-    -- "abc", 1, -3, 4.5, ...
-    = Literal String
-      -- +, -, ==>, ...
-    | Operator String
-      -- a, model, update, beginnerProgram, ...
-    | Symbol String
-      -- nodes
-    | FunctionCall Node (List Node)
-
 
 type Node
-    = Node ParseLocation NodeValue
+    = Element ParseLocation String
+    | FunctionCall ParseLocation Node (List Node) -- function, arguments
 
 
 
@@ -56,11 +46,11 @@ symbol =
 element : Parser s Node
 element =
     Combine.choice
-        [ integer |> Combine.map Literal
-        , Combine.parens operator |> Combine.map Symbol
-        , symbol |> Combine.map Symbol
+        [ integer
+        , Combine.parens operator
+        , symbol
         ]
-        |> toNodeParser (\location nodeValue -> Node location nodeValue)
+        |> toNodeParser (\location nodeValue -> Element location nodeValue)
 
 
 
@@ -74,7 +64,7 @@ list =
             expression
                 |> Combine.sepBy (Combine.string ",")
                 |> Combine.between (Combine.string "[") (Combine.string "]")
-                |> toNodeParser (\location array -> Node location <| FunctionCall (Node location <| Symbol "[]") array)
+                |> toNodeParser (\location array -> FunctionCall location (Element location "[]") array)
 
 
 tuple : Parser s Node
@@ -84,7 +74,7 @@ tuple =
             expression
                 |> Combine.sepBy (Combine.string ",")
                 |> Combine.between (Combine.string "(") (Combine.string ")")
-                |> toNodeParser (\location array -> Node location <| FunctionCall (Node location <| Symbol "()") array)
+                |> toNodeParser (\location array -> FunctionCall location (Element location "()") array)
 
 
 atom : Parser s Node
@@ -106,10 +96,10 @@ functionCall =
         arrayToCall location array =
             case array of
                 [] ->
-                    Node location <| Literal "This is not going to happen"
+                    Element location "This is not going to happen"
 
                 function :: arguments ->
-                    Node location <| FunctionCall function arguments
+                    FunctionCall location function arguments
     in
         Combine.lazy <|
             \() ->
