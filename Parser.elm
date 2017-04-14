@@ -139,16 +139,17 @@ sequence leftDelimiter rightDelimiter listToExpression =
                 |> withLocation listToExpression
 
 
+atupleExpression =
+--     Combine.lazy <|
+--         \() ->
+            sequence "<" ">" TupleExpression
+
 listExpression =
     Combine.lazy <|
         \() ->
             sequence "[" "]" ListExpression
 
 
-tupleExpression =
-    Combine.lazy <|
-        \() ->
-            sequence "(" ")" TupleExpression
 
 
 
@@ -207,7 +208,7 @@ expression =
         \() ->
             Combine.choice
                 [ listExpression
-                , tupleExpression
+                , atupleExpression
                 , elementExpression
                 ]
                   |> withWhitespace
