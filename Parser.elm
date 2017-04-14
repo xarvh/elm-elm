@@ -151,36 +151,38 @@ tupleExpression =
             sequence "(" ")" TupleExpression
 
 
-
--- atom : Parser s LocatedExpression
--- atom =
---     Combine.lazy <|
---         \() ->
---             [ elementExpression
---             , list
---             , tuple
---             , Combine.parens expression
---             ]
---                 |> Combine.choice
---                 |> Combine.between Combine.whitespace Combine.whitespace
-{-
-   functionCall : Parser s Node
-   functionCall =
-       let
-           arrayToCall location array =
-               case array of
-                   [] ->
-                       Element location "This is not going to happen"
-
-                   function :: arguments ->
-                       FunctionCall location function arguments
-       in
-           Combine.lazy <|
-               \() ->
-                   Combine.sepBy1 Combine.whitespace atom
-                       |> toNodeParser arrayToCall
-
+{-| An atom is something that doesn't need precedence rules
 -}
+atom : Parser s LocatedExpression
+atom =
+    Combine.lazy <|
+        \() ->
+            [ elementExpression
+            , listExpression
+            , tupleExpression
+            , Combine.parens expression
+            ]
+                |> Combine.choice
+
+
+functionCall : Parser s LocatedExpression
+functionCall =
+    let
+        listToFunctionCall list =
+            case list of
+                [] ->
+                    LiteralExpression "This is not going to happen"
+
+                function :: arguments ->
+                    FunctionCall function arguments
+    in
+        Combine.lazy <|
+            \() ->
+                Combine.sepBy1 Combine.whitespace atom
+                    |> withLocation listToFunctionCall
+
+
+
 {-
    op0 : P s -> P s
    op0 previous =
@@ -206,11 +208,9 @@ expression =
     Combine.lazy <|
         \() ->
             Combine.choice
-                [ listExpression
-                , tupleExpression
-                , elementExpression
+                [ functionCall
+                , atom
                 ]
-                  |> withWhitespace
 
 
 
@@ -229,6 +229,12 @@ expression =
 --, op0 prev
 --                 ]
 
+mainParser : Parser s LocatedExpression
+mainParser =
+  expression
+    |> withWhitespace
+    |> mustEnd
+
 
 parse code =
-    Combine.parse (mustEnd expression) code
+    Combine.parse mainParser code
