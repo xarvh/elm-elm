@@ -77,7 +77,6 @@ withWhitespace =
 
 
 
-
 -- Elements
 
 
@@ -131,20 +130,25 @@ elementExpression =
 
 sequence : String -> String -> (List LocatedExpression -> Expression) -> Parser s LocatedExpression
 sequence leftDelimiter rightDelimiter listToExpression =
-  Combine.lazy <| \() ->
-    expression
-        |> withWhitespace
-        |> Combine.sepBy (Combine.string ",")
-        |> Combine.between (Combine.string leftDelimiter) (Combine.string rightDelimiter)
-        |> withLocation listToExpression
+    Combine.lazy <|
+        \() ->
+            expression
+                |> withWhitespace
+                |> Combine.sepBy (Combine.string ",")
+                |> Combine.between (Combine.string leftDelimiter) (Combine.string rightDelimiter)
+                |> withLocation listToExpression
 
 
 listExpression =
-    sequence "[" "]" ListExpression
+    Combine.lazy <|
+        \() ->
+            sequence "[" "]" ListExpression
 
 
--- tuple =
---     sequence "(" ")" TupleExpression
+tupleExpression =
+    Combine.lazy <|
+        \() ->
+            sequence "(" ")" TupleExpression
 
 
 
@@ -201,10 +205,12 @@ expression : Parser s LocatedExpression
 expression =
     Combine.lazy <|
         \() ->
-          Combine.choice
-            [ elementExpression
---             , listExpression
-            ]
+            Combine.choice
+                [ listExpression
+                , tupleExpression
+                , elementExpression
+                ]
+                  |> withWhitespace
 
 
 
@@ -220,7 +226,7 @@ expression =
 --                 , list
 --                 , tuple
 --
-                --, op0 prev
+--, op0 prev
 --                 ]
 
 
