@@ -12,13 +12,6 @@ type UnaryOperator
     = Negative
 
 
-
--- type LetDeclaration
---   = LetDefinition Pattern.Pattern [(Comments, Pattern.Pattern)] Comments Expr
---   | LetAnnotation (Var.Ref, Comments) (Comments, Type)
---   | LetComment Comment
-
-
 type alias LiteralValue =
     String
 
@@ -32,18 +25,21 @@ type LocatedExpression
 
 
 type Expression
-    = Unit
-    | Literal LiteralValue
-    | Variable VariableReference
+    = BinaryExpression LocatedExpression VariableReference LocatedExpression
     | FunctionCall LocatedExpression (List LocatedExpression)
-      --| Unary UnaryOperator LocatedExpression
-    | Binary LocatedExpression VariableReference LocatedExpression
-    | Parens LocatedExpression
-    | Array (List LocatedExpression)
-    | Tuple (List LocatedExpression)
+    | ListExpression (List LocatedExpression)
+    | LiteralExpression LiteralValue
+    | TupleExpression (List LocatedExpression)
+    | UnaryExpression UnaryOperator LocatedExpression
+    | Unit
+    | VariableExpression VariableReference
 
 
 
+-- type LetDeclaration
+--   = LetDefinition Pattern.Pattern [(Comments, Pattern.Pattern)] Comments Expr
+--   | LetAnnotation (Var.Ref, Comments) (Comments, Type)
+--   | LetComment Comment
 --| Record
 --{ base :: Maybe LowercaseIdentifier
 --, fields :: List (LowercaseIdentifier, Expr)
@@ -65,13 +61,20 @@ mustEnd =
     Combine.map always >> Combine.andMap Combine.end
 
 
-withLocation : (ParseLocation -> a -> LocatedExpression) -> Parser s a -> Parser s LocatedExpression
-withLocation valueToNode parser =
+withLocation : (a -> Expression) -> Parser s a -> Parser s LocatedExpression
+withLocation valueToExpression parser =
     Combine.lazy <|
         \() ->
             Combine.withLocation <|
                 \location ->
-                    Combine.map (valueToNode location) parser
+                    parser
+                        |> Combine.map (LocatedExpression location << valueToExpression)
+
+
+withWhitespace : Parser s a -> Parser s a
+withWhitespace =
+    Combine.between Combine.whitespace Combine.whitespace
+
 
 
 
@@ -96,20 +99,20 @@ integerLiteral : Parser s Expression
 integerLiteral =
     Combine.Num.int
         |> Combine.map toString
-        |> Combine.map Literal
+        |> Combine.map LiteralExpression
 
 
 prefixOperator : Parser s Expression
 prefixOperator =
     operator
         |> Combine.parens
-        |> Combine.map Variable
+        |> Combine.map VariableExpression
 
 
 variable : Parser s Expression
 variable =
     lowercaseIdentifier
-        |> Combine.map Variable
+        |> Combine.map VariableExpression
 
 
 elementExpression : Parser s LocatedExpression
@@ -119,64 +122,61 @@ elementExpression =
         , prefixOperator
         , variable
         ]
-        |> withLocation LocatedExpression
+        |> withLocation identity
 
 
 
 -- Higher order constructs
 
 
+sequence : String -> String -> (List LocatedExpression -> Expression) -> Parser s LocatedExpression
+sequence leftDelimiter rightDelimiter listToExpression =
+  Combine.lazy <| \() ->
+    expression
+        |> withWhitespace
+        |> Combine.sepBy (Combine.string ",")
+        |> Combine.between (Combine.string leftDelimiter) (Combine.string rightDelimiter)
+        |> withLocation listToExpression
+
+
+listExpression =
+    sequence "[" "]" ListExpression
+
+
+-- tuple =
+--     sequence "(" ")" TupleExpression
+
+
+
+-- atom : Parser s LocatedExpression
+-- atom =
+--     Combine.lazy <|
+--         \() ->
+--             [ elementExpression
+--             , list
+--             , tuple
+--             , Combine.parens expression
+--             ]
+--                 |> Combine.choice
+--                 |> Combine.between Combine.whitespace Combine.whitespace
 {-
-list : Parser s Expression
-list =
-            expression
-                |> Combine.sepBy (Combine.string ",")
-                |> Combine.between (Combine.string "[") (Combine.string "]")
-                |> toNodeParser (\location array -> FunctionCall location (Element location "[]") array)
+   functionCall : Parser s Node
+   functionCall =
+       let
+           arrayToCall location array =
+               case array of
+                   [] ->
+                       Element location "This is not going to happen"
 
-
-tuple : Parser s Node
-tuple =
-    Combine.lazy <|
-        \() ->
-            expression
-                |> Combine.sepBy (Combine.string ",")
-                |> Combine.between (Combine.string "(") (Combine.string ")")
-                |> toNodeParser (\location array -> FunctionCall location (Element location "()") array)
-
-
-atom : Parser s Node
-atom =
-    Combine.lazy <|
-        \() ->
-            [ element
-            , list
-            , tuple
-            , Combine.parens expression
-            ]
-                |> Combine.choice
-                |> Combine.between Combine.whitespace Combine.whitespace
-
-
-functionCall : Parser s Node
-functionCall =
-    let
-        arrayToCall location array =
-            case array of
-                [] ->
-                    Element location "This is not going to happen"
-
-                function :: arguments ->
-                    FunctionCall location function arguments
-    in
-        Combine.lazy <|
-            \() ->
-                Combine.sepBy1 Combine.whitespace atom
-                    |> toNodeParser arrayToCall
+                   function :: arguments ->
+                       FunctionCall location function arguments
+       in
+           Combine.lazy <|
+               \() ->
+                   Combine.sepBy1 Combine.whitespace atom
+                       |> toNodeParser arrayToCall
 
 -}
-
-
 {-
    op0 : P s -> P s
    op0 previous =
@@ -199,23 +199,29 @@ functionCall =
 
 expression : Parser s LocatedExpression
 expression =
-    elementExpression
-{-
     Combine.lazy <|
         \() ->
-            let
-                prev =
-                    Combine.choice
-                        [ mustEnd atom
-                        , functionCall
-                        ]
-            in
-                Combine.choice
-                    [ mustEnd prev
+          Combine.choice
+            [ elementExpression
+--             , listExpression
+            ]
 
-                    --, op0 prev
-                    ]
--}
+
+
+--            let
+--                prev =
+--                    Combine.choice
+--                        [ mustEnd atom
+--                        , functionCall
+--                        ]
+--            in
+--             Combine.choice
+--                 [ elementExpression
+--                 , list
+--                 , tuple
+--
+                --, op0 prev
+--                 ]
 
 
 parse code =
