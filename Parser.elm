@@ -183,25 +183,22 @@ functionCall =
                     |> withLocation identity
 
 
+op0 : Parser s String -> Parser s LocatedExpression -> Parser s LocatedExpression
+op0 opParser previous =
+    let
+        makeOpExpression : ParseLocation -> String -> (LocatedExpression -> LocatedExpression -> LocatedExpression)
+        makeOpExpression location opString leftExpression rightExpression =
+            LocatedExpression location <| BinaryExpression leftExpression opString rightExpression
 
-{-
-   op0 : P s -> P s
-   op0 previous =
-       let
-           operator string result =
-               string
-                   |> Combine.string
-                   |> Combine.map (always result)
-
-           opNode leftChild rightChild =
-               FunctionCall (Element "*") [ leftChild, rightChild ]
-
-           parseOp =
-               operator "*" opNode
-       in
-           Combine.lazy <|
-               \() -> Combine.chainl parseOp previous
--}
+        operatorParser : Parser s (LocatedExpression -> LocatedExpression -> LocatedExpression)
+        operatorParser =
+            Combine.withLocation <|
+                \location ->
+                    opParser
+                        |> withWhitespace
+                        |> Combine.map (makeOpExpression location)
+    in
+        Combine.chainl operatorParser previous
 
 
 expression : Parser s LocatedExpression
@@ -212,23 +209,13 @@ expression =
                 [ functionCall
                 , atom
                 ]
+                |> op0 (Combine.or (Combine.string "*") (Combine.string "/"))
 
 
 
---            let
---                prev =
---                    Combine.choice
---                        [ mustEnd atom
---                        , functionCall
---                        ]
---            in
---             Combine.choice
---                 [ elementExpression
---                 , list
---                 , tuple
---
---, op0 prev
---                 ]
+-- operators =
+--   [ "*"
+--   , "/"
 
 
 mainParser : Parser s LocatedExpression
