@@ -168,18 +168,19 @@ atom =
 functionCall : Parser s LocatedExpression
 functionCall =
     let
-        listToFunctionCall list =
+        listToFunctionCallParser list =
             case list of
-                [] ->
-                    LiteralExpression "This is not going to happen"
+                function :: secondArgument :: otherArguments ->
+                    Combine.succeed <| FunctionCall function (secondArgument :: otherArguments)
 
-                function :: arguments ->
-                    FunctionCall function arguments
+                _ ->
+                    Combine.fail "not a function call"
     in
         Combine.lazy <|
             \() ->
-                Combine.sepBy1 Combine.whitespace atom
-                    |> withLocation listToFunctionCall
+                Combine.sepBy Combine.whitespace atom
+                    |> Combine.andThen listToFunctionCallParser
+                    |> withLocation identity
 
 
 
@@ -229,11 +230,12 @@ expression =
 --, op0 prev
 --                 ]
 
+
 mainParser : Parser s LocatedExpression
 mainParser =
-  expression
-    |> withWhitespace
-    |> mustEnd
+    expression
+        |> withWhitespace
+        |> mustEnd
 
 
 parse code =
