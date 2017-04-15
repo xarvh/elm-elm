@@ -1,6 +1,6 @@
 module Parser exposing (..)
 
-import Combine exposing (Parser, ParseLocation, string)
+import Combine exposing (Parser, ParseLocation, (*>))
 import Combine.Num
 
 
@@ -29,6 +29,7 @@ type Expression
     | FunctionCall LocatedExpression (List LocatedExpression)
     | ListExpression (List LocatedExpression)
     | LiteralExpression LiteralValue
+    | RecordAccessorFunction String
     | TupleExpression (List LocatedExpression)
     | UnaryExpression UnaryOperator LocatedExpression
     | Unit
@@ -85,9 +86,17 @@ operator =
     Combine.regex "[~!=@#$%^&*-+|<>]+"
 
 
-lowercaseIdentifier : Parser s String
-lowercaseIdentifier =
-    Combine.regex "[a-z][a-zA-Z0-9]*"
+
+-- lowercaseIdentifier : Parser s String
+-- lowercaseIdentifier =
+--     Combine.regex "[a-z][a-zA-Z0-9]*"
+
+
+{-| This covers variable, attribute, module and sub-module names
+-}
+symbol : Parser s String
+symbol =
+    Combine.regex "[a-zA-Z][a-zA-Z0-9_]*"
 
 
 
@@ -110,8 +119,15 @@ prefixOperator =
 
 variable : Parser s Expression
 variable =
-    lowercaseIdentifier
+    symbol
         |> Combine.map VariableExpression
+
+
+recordAccessorFunction : Parser s Expression
+recordAccessorFunction =
+  Combine.string "." *> symbol
+    |> Combine.map RecordAccessorFunction
+
 
 
 elementExpression : Parser s LocatedExpression
@@ -119,6 +135,7 @@ elementExpression =
     Combine.choice
         [ integerLiteral
         , prefixOperator
+        , recordAccessorFunction
         , variable
         ]
         |> withLocation identity
@@ -151,6 +168,10 @@ tupleExpression =
             sequence "(" ")" TupleExpression
 
 
+-- recordAccessExpression =
+--     Combine
+
+
 {-| An atom is something that doesn't need precedence rules
 -}
 atom : Parser s LocatedExpression
@@ -160,6 +181,7 @@ atom =
             [ elementExpression
             , listExpression
             , tupleExpression
+--             , recordAccessExpression
             , Combine.parens expression
             ]
                 |> Combine.choice

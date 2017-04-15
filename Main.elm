@@ -88,6 +88,9 @@ le2t (Parser.LocatedExpression location expression) =
             Parser.LiteralExpression value ->
                 n ( location, value ) []
 
+            Parser.RecordAccessorFunction name ->
+                n (location, "." ++ name) []
+
             Parser.TupleExpression entries ->
                 n ( location, "()" ) (List.map le2t entries)
 
