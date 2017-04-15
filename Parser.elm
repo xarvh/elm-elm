@@ -210,12 +210,7 @@ expression =
                 , atom
                 ]
                 |> op0 (Combine.or (Combine.string "*") (Combine.string "/"))
-
-
-
--- operators =
---   [ "*"
---   , "/"
+                |> op0 (Combine.or (Combine.string "+") (Combine.string "-"))
 
 
 mainParser : Parser s LocatedExpression
