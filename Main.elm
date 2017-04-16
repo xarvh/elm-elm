@@ -7,16 +7,20 @@ import Html.Events
 import Parser
 import Svg exposing (Svg)
 import Svg.Attributes
+import Svg.Events
 import TreeDiagram
 import TreeDiagram.Svg
 
 
 type alias Model =
-    String
+    { code : String
+    , location : String
+    }
 
 
 init =
-    """[ 1
+    { code = """
+[ 1
 , (==)
 , a
 , [1, (==), a, sin 1, [x, y], (2, 3), 8 * 9]
@@ -27,10 +31,26 @@ init =
 , .standaloneAccessor
 ]
 """
+    , location = "hover on a node to see its text location"
+    }
+
+
+
+--
+
+
+type Msg
+    = OnCodeInput String
+    | OnHover Combine.ParseLocation
 
 
 update msg model =
-    msg
+    case msg of
+        OnCodeInput code ->
+            { model | code = code }
+
+        OnHover location ->
+            { model | location = toString location }
 
 
 
@@ -49,10 +69,10 @@ drawLine ( targetX, targetY ) =
         []
 
 
-drawNode : ( Combine.ParseLocation, String ) -> Svg msg
+drawNode : ( Combine.ParseLocation, String ) -> Svg Msg
 drawNode ( location, label ) =
     Svg.g
-        []
+        [ Svg.Events.onMouseOver (OnHover location) ]
         [ Svg.circle
             [ Svg.Attributes.r "16"
             , Svg.Attributes.stroke "black"
@@ -81,7 +101,7 @@ le2t (Parser.LocatedExpression location expression) =
                 n ( location, reference ) [ le2t left, le2t right ]
 
             Parser.FunctionCall function arguments ->
-                n (location, "call") (List.map le2t (function :: arguments))
+                n ( location, "call" ) (List.map le2t (function :: arguments))
 
             Parser.ListExpression elements ->
                 n ( location, "[]" ) (List.map le2t elements)
@@ -90,10 +110,10 @@ le2t (Parser.LocatedExpression location expression) =
                 n ( location, value ) []
 
             Parser.RecordAccessorFunction name ->
-                n (location, "." ++ name) []
+                n ( location, "." ++ name ) []
 
             Parser.RecordAccess exp accessors ->
-                n (location, "acc") (List.map le2t (exp :: accessors))
+                n ( location, "acc" ) (List.map le2t (exp :: accessors))
 
             Parser.TupleExpression entries ->
                 n ( location, "()" ) (List.map le2t entries)
@@ -108,10 +128,10 @@ le2t (Parser.LocatedExpression location expression) =
                 n ( location, variableReference ) []
 
 
-view code =
+view model =
     let
         result =
-            Parser.parse code
+            Parser.parse model.code
     in
         div
             [ Html.Attributes.style
@@ -123,13 +143,20 @@ view code =
                 ]
             ]
             [ Html.textarea
-                [ Html.Events.onInput identity
+                [ Html.Events.onInput OnCodeInput
                 , Html.Attributes.style
                     [ ( "width", "700px" )
                     , ( "height", "300px" )
                     ]
                 ]
-                [ text code ]
+                [ text model.code ]
+            , div
+                [ Html.Attributes.style
+                    [ ( "margin-top", "2rem" )
+                    ]
+                ]
+                [ text model.location]
+
             , div
                 [ Html.Attributes.style
                     [ ( "margin-top", "2rem" )
@@ -151,9 +178,9 @@ view code =
                             ]
 
                     Ok ( _, _, tree ) ->
-                      tree
-                        |> le2t
-                        |> TreeDiagram.Svg.draw TreeDiagram.defaultTreeLayout drawNode drawLine 
+                        tree
+                            |> le2t
+                            |> TreeDiagram.Svg.draw TreeDiagram.defaultTreeLayout drawNode drawLine
                 ]
             ]
 
