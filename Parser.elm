@@ -88,8 +88,8 @@ map2 f parserA parserB =
 -- String parsers
 
 
-operator : Parser s String
-operator =
+operatorString : Parser s String
+operatorString =
     Combine.regex "[~!=@#$%^&*-+|<>]+"
 
 
@@ -118,7 +118,7 @@ integerLiteral =
 
 prefixOperator : Parser s Expression
 prefixOperator =
-    operator
+    operatorString
         |> Combine.parens
         |> Combine.map VariableExpression
 
@@ -220,8 +220,8 @@ functionCall =
                     |> withLocation identity
 
 
-op0 : Parser s String -> Parser s LocatedExpression -> Parser s LocatedExpression
-op0 opParser previous =
+operatorParser : Parser s String -> Parser s LocatedExpression -> Parser s LocatedExpression
+operatorParser operatorStringParser higherPrecedenceParser =
     let
         makeOpExpression : ParseLocation -> String -> (LocatedExpression -> LocatedExpression -> LocatedExpression)
         makeOpExpression location opString leftExpression rightExpression =
@@ -231,23 +231,31 @@ op0 opParser previous =
         operatorParser =
             Combine.withLocation <|
                 \location ->
-                    opParser
+                    operatorStringParser
                         |> withWhitespace
                         |> Combine.map (makeOpExpression location)
     in
-        Combine.chainl operatorParser previous
+        Combine.chainl operatorParser higherPrecedenceParser
 
 
 expression : Parser s LocatedExpression
 expression =
     Combine.lazy <|
         \() ->
-            Combine.choice
-                [ functionCall
-                , atom
-                ]
-                |> op0 (Combine.or (Combine.string "*") (Combine.string "/"))
-                |> op0 (Combine.or (Combine.string "+") (Combine.string "-"))
+            let
+                parserWithHigherPrecedenceThanAnyOperator =
+                    Combine.choice
+                        [ functionCall
+                        , atom
+                        ]
+            in
+                List.foldl operatorParser parserWithHigherPrecedenceThanAnyOperator operators
+
+
+operators =
+    [ (Combine.or (Combine.string "*") (Combine.string "/"))
+    , (Combine.or (Combine.string "+") (Combine.string "-"))
+    ]
 
 
 mainParser : Parser s LocatedExpression
