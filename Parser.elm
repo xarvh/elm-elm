@@ -30,6 +30,7 @@ type Expression
     | ListExpression (List LocatedExpression)
     | LiteralExpression LiteralValue
     | RecordAccessorFunction String
+    | RecordAccess LocatedExpression (List LocatedExpression)
     | TupleExpression (List LocatedExpression)
     | UnaryExpression UnaryOperator LocatedExpression
     | Unit
@@ -48,8 +49,6 @@ type Expression
 
 
 
---| RecordAttribute Expr LowercaseIdentifier
---| RecordAttributeFunction LowercaseIdentifier
 --| Lambda (List Pattern) Expr
 --| If LocatedExpression LocatedExpression LocatedExpression
 --| Let (List Declaration) LocatedExpression
@@ -77,8 +76,16 @@ withWhitespace =
     Combine.between Combine.whitespace Combine.whitespace
 
 
+{-| TODO isn't there a nicer way to implement map2?
+-}
+map2 : (a -> b -> c) -> Parser s a -> Parser s b -> Parser s c
+map2 f parserA parserB =
+    parserA
+        |> Combine.andThen (\a -> Combine.map (f a) parserB)
 
--- Elements
+
+
+-- String parsers
 
 
 operator : Parser s String
@@ -86,17 +93,16 @@ operator =
     Combine.regex "[~!=@#$%^&*-+|<>]+"
 
 
-
--- lowercaseIdentifier : Parser s String
--- lowercaseIdentifier =
---     Combine.regex "[a-z][a-zA-Z0-9]*"
-
-
 {-| This covers variable, attribute, module and sub-module names
 -}
 symbol : Parser s String
 symbol =
     Combine.regex "[a-zA-Z][a-zA-Z0-9_]*"
+
+
+dotAccessorString : Parser s String
+dotAccessorString =
+    Combine.string "." *> symbol
 
 
 
@@ -125,9 +131,8 @@ variable =
 
 recordAccessorFunction : Parser s Expression
 recordAccessorFunction =
-  Combine.string "." *> symbol
-    |> Combine.map RecordAccessorFunction
-
+    dotAccessorString
+        |> Combine.map RecordAccessorFunction
 
 
 elementExpression : Parser s LocatedExpression
@@ -168,10 +173,6 @@ tupleExpression =
             sequence "(" ")" TupleExpression
 
 
--- recordAccessExpression =
---     Combine
-
-
 {-| An atom is something that doesn't need precedence rules
 -}
 atom : Parser s LocatedExpression
@@ -181,10 +182,24 @@ atom =
             [ elementExpression
             , listExpression
             , tupleExpression
---             , recordAccessExpression
             , Combine.parens expression
             ]
                 |> Combine.choice
+                |> withRecordAccess
+
+
+withRecordAccess : Parser s LocatedExpression -> Parser s LocatedExpression
+withRecordAccess parser =
+    let
+        stuffToLocatedExpression exp accessors =
+            case accessors of
+                [] ->
+                    exp
+
+                (LocatedExpression location expression) :: xs ->
+                    LocatedExpression location (RecordAccess exp accessors)
+    in
+        map2 stuffToLocatedExpression parser (Combine.many (recordAccessorFunction |> withLocation identity))
 
 
 functionCall : Parser s LocatedExpression
@@ -200,7 +215,7 @@ functionCall =
     in
         Combine.lazy <|
             \() ->
-                Combine.sepBy Combine.whitespace atom
+                Combine.sepBy Combine.whitespace1 atom
                     |> Combine.andThen listToFunctionCallParser
                     |> withLocation identity
 

@@ -23,7 +23,8 @@ init =
 , (1, (==), a, sin 1, [x, y], (2, 3), 8 * 9)
 , (a)
 , sin a
-, 1 * k
+, 1 * Module.SubModule.record.function 5
+, .standaloneAccessor
 ]
 """
 
@@ -90,6 +91,9 @@ le2t (Parser.LocatedExpression location expression) =
 
             Parser.RecordAccessorFunction name ->
                 n (location, "." ++ name) []
+
+            Parser.RecordAccess exp accessors ->
+                n (location, "acc") (List.map le2t (exp :: accessors))
 
             Parser.TupleExpression entries ->
                 n ( location, "()" ) (List.map le2t entries)
