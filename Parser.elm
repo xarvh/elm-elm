@@ -272,6 +272,15 @@ type alias Ops s =
     }
 
 
+undeclaredOp : Ops s
+undeclaredOp =
+    -- catch any other op
+    { parser = operatorString
+    , precedence = 0
+    , associativity = LeftAssociative
+    }
+
+
 operators : List (Ops s)
 operators =
     [ { parser = [ "+", "-" ] |> List.map Combine.string |> Combine.choice
@@ -293,16 +302,7 @@ operators =
     ]
         |> List.sortBy .precedence
         |> List.reverse
-
-
-{-|
-genericOp =
-    -- catch any other op
-    { parser = operatorString
-    , precedence = 9
-    , associativity = LeftAssociative
-    }
--}
+        |> (::) undeclaredOp
 
 
 mainParser : Parser s LocatedExpression
