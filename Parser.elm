@@ -220,8 +220,8 @@ functionCall =
                     |> withLocation identity
 
 
-operatorParser : Parser s String -> Parser s LocatedExpression -> Parser s LocatedExpression
-operatorParser operatorStringParser higherPrecedenceParser =
+operatorParser : Ops s -> Parser s LocatedExpression -> Parser s LocatedExpression
+operatorParser ops higherPrecedenceParser =
     let
         makeOpExpression : ParseLocation -> String -> (LocatedExpression -> LocatedExpression -> LocatedExpression)
         makeOpExpression location opString leftExpression rightExpression =
@@ -231,11 +231,19 @@ operatorParser operatorStringParser higherPrecedenceParser =
         operatorParser =
             Combine.withLocation <|
                 \location ->
-                    operatorStringParser
+                    ops.parser
                         |> withWhitespace
                         |> Combine.map (makeOpExpression location)
+
+        chain =
+            case ops.associativity of
+                LeftAssociative ->
+                    Combine.chainl
+
+                RightAssociative ->
+                    Combine.chainr
     in
-        Combine.chainl operatorParser higherPrecedenceParser
+        chain operatorParser higherPrecedenceParser
 
 
 expression : Parser s LocatedExpression
@@ -252,10 +260,49 @@ expression =
                 List.foldl operatorParser parserWithHigherPrecedenceThanAnyOperator operators
 
 
+type Associativity
+    = LeftAssociative
+    | RightAssociative
+
+
+type alias Ops s =
+    { parser : Parser s String
+    , precedence : Int
+    , associativity : Associativity
+    }
+
+
+operators : List (Ops s)
 operators =
-    [ (Combine.or (Combine.string "*") (Combine.string "/"))
-    , (Combine.or (Combine.string "+") (Combine.string "-"))
+    [ { parser = [ "+", "-" ] |> List.map Combine.string |> Combine.choice
+      , precedence = 6
+      , associativity = LeftAssociative
+      }
+    , { parser = [ "*", "/" ] |> List.map Combine.string |> Combine.choice
+      , precedence = 7
+      , associativity = LeftAssociative
+      }
+    , { parser = Combine.string "^"
+      , precedence = 8
+      , associativity = RightAssociative
+      }
+    , { parser = [ "//", "%" ] |> List.map Combine.string |> Combine.choice
+      , precedence = 7
+      , associativity = LeftAssociative
+      }
     ]
+        |> List.sortBy .precedence
+        |> List.reverse
+
+
+{-|
+genericOp =
+    -- catch any other op
+    { parser = operatorString
+    , precedence = 9
+    , associativity = LeftAssociative
+    }
+-}
 
 
 mainParser : Parser s LocatedExpression
