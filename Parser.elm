@@ -4,7 +4,7 @@ import Combine exposing (Parser, ParseLocation, (*>))
 import Combine.Num
 
 
--- Structure nmore or less copied from avh4's fantastic elm-format
+-- Structure more or less copied from avh4's fantastic elm-format
 -- https://github.com/avh4/elm-format/blob/master/parser/src/AST/Expression.hs
 
 
@@ -35,6 +35,26 @@ type Expression
     | UnaryExpression UnaryOperator LocatedExpression
     | Unit
     | VariableExpression VariableReference
+
+
+
+-- Operators
+
+
+type Associativity
+    = LeftAssociative
+    | RightAssociative
+
+
+type alias OpGroup s =
+    { parser : Parser s String
+    , precedence : Int
+    , associativity : Associativity
+    }
+
+
+type alias Ops s =
+    List (OpGroup s)
 
 
 
@@ -150,39 +170,39 @@ elementExpression =
 -- Higher order constructs
 
 
-sequence : String -> String -> (List LocatedExpression -> Expression) -> Parser s LocatedExpression
-sequence leftDelimiter rightDelimiter listToExpression =
+sequence : Ops s -> String -> String -> (List LocatedExpression -> Expression) -> Parser s LocatedExpression
+sequence ops leftDelimiter rightDelimiter listToExpression =
     Combine.lazy <|
         \() ->
-            expression
+            expression ops
                 |> withWhitespace
                 |> Combine.sepBy (Combine.string ",")
                 |> Combine.between (Combine.string leftDelimiter) (Combine.string rightDelimiter)
                 |> withLocation listToExpression
 
 
-listExpression =
+listExpression ops =
     Combine.lazy <|
         \() ->
-            sequence "[" "]" ListExpression
+            sequence ops "[" "]" ListExpression
 
 
-tupleExpression =
+tupleExpression ops =
     Combine.lazy <|
         \() ->
-            sequence "(" ")" TupleExpression
+            sequence ops "(" ")" TupleExpression
 
 
 {-| An atom is something that doesn't need precedence rules
 -}
-atom : Parser s LocatedExpression
-atom =
+atom : Ops s -> Parser s LocatedExpression
+atom ops =
     Combine.lazy <|
         \() ->
             [ elementExpression
-            , listExpression
-            , tupleExpression
-            , Combine.parens expression
+            , listExpression ops
+            , tupleExpression ops
+            , Combine.parens (expression ops)
             ]
                 |> Combine.choice
                 |> withRecordAccess
@@ -202,8 +222,8 @@ withRecordAccess parser =
         map2 stuffToLocatedExpression parser (Combine.many (recordAccessorFunction |> withLocation identity))
 
 
-functionCall : Parser s LocatedExpression
-functionCall =
+functionCall : Ops s -> Parser s LocatedExpression
+functionCall ops =
     let
         listToFunctionCallParser list =
             case list of
@@ -215,13 +235,13 @@ functionCall =
     in
         Combine.lazy <|
             \() ->
-                Combine.sepBy Combine.whitespace1 atom
+                Combine.sepBy Combine.whitespace1 (atom ops)
                     |> Combine.andThen listToFunctionCallParser
                     |> withLocation identity
 
 
-operatorParser : Ops s -> Parser s LocatedExpression -> Parser s LocatedExpression
-operatorParser ops higherPrecedenceParser =
+operatorParser : OpGroup s -> Parser s LocatedExpression -> Parser s LocatedExpression
+operatorParser opGroup higherPrecedenceParser =
     let
         makeOpExpression : ParseLocation -> String -> (LocatedExpression -> LocatedExpression -> LocatedExpression)
         makeOpExpression location opString leftExpression rightExpression =
@@ -231,12 +251,12 @@ operatorParser ops higherPrecedenceParser =
         operatorParser =
             Combine.withLocation <|
                 \location ->
-                    ops.parser
+                    opGroup.parser
                         |> withWhitespace
                         |> Combine.map (makeOpExpression location)
 
         chain =
-            case ops.associativity of
+            case opGroup.associativity of
                 LeftAssociative ->
                     Combine.chainl
 
@@ -246,43 +266,22 @@ operatorParser ops higherPrecedenceParser =
         chain operatorParser higherPrecedenceParser
 
 
-expression : Parser s LocatedExpression
-expression =
+expression : Ops s -> Parser s LocatedExpression
+expression ops =
     Combine.lazy <|
         \() ->
             let
                 parserWithHigherPrecedenceThanAnyOperator =
                     Combine.choice
-                        [ functionCall
-                        , atom
+                        [ functionCall ops
+                        , atom ops
                         ]
             in
-                List.foldl operatorParser parserWithHigherPrecedenceThanAnyOperator operators
+                List.foldl operatorParser parserWithHigherPrecedenceThanAnyOperator ops
 
 
-type Associativity
-    = LeftAssociative
-    | RightAssociative
-
-
-type alias Ops s =
-    { parser : Parser s String
-    , precedence : Int
-    , associativity : Associativity
-    }
-
-
-undeclaredOp : Ops s
-undeclaredOp =
-    -- catch any other op
-    { parser = operatorString
-    , precedence = 0
-    , associativity = LeftAssociative
-    }
-
-
-operators : List (Ops s)
-operators =
+op0 : Ops s
+op0 =
     [ { parser = [ "+", "-" ] |> List.map Combine.string |> Combine.choice
       , precedence = 6
       , associativity = LeftAssociative
@@ -299,15 +298,20 @@ operators =
       , precedence = 7
       , associativity = LeftAssociative
       }
+
+    -- catch ops that don't have a precedence/associativity declaration
+    , { parser = operatorString
+      , precedence = 0
+      , associativity = LeftAssociative
+      }
     ]
         |> List.sortBy .precedence
         |> List.reverse
-        |> (::) undeclaredOp
 
 
 mainParser : Parser s LocatedExpression
 mainParser =
-    expression
+    expression op0
         |> withWhitespace
         |> mustEnd
 
